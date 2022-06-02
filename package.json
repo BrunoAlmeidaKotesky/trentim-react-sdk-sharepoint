@@ -1,10 +1,10 @@
 {
-  "name": "trentim-react-sdk",
+  "name": "trentim-react-sdk-sharepoint",
   "version": "1.4.2",
-  "description": "Trentim internal SDK for ReactJS projects, with UI components, helpers, hooks and more.",
+  "description": "A Sharepoint plugin for trentim-react-sdk",
   "repository": {
     "type": "git",
-    "url": "https://github.com/BrunoAlmeidaKotesky/trentim-react-sdk"
+    "url": "https://github.com/BrunoAlmeidaKotesky/trentim-react-sdk-sharepoint"
   },
   "private": false,
   "sideEffects": false,
@@ -162,6 +162,8 @@
   },
   "dependencies": {
     "@fluentui/react": "8.52.3",
-    "fast-sort": "^3.1.3"
+    "@pnp/sp": "2.3.0",
+    "react-pluggable": "^0.4.3",
+    "trentim-react-sdk": "^1.4.2"
   }
 }

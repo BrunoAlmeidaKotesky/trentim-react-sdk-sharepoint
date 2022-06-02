@@ -47,36 +47,11 @@
       "node",
       "jest",
       "webpack-env"
-    ],
-    "baseUrl": ".",
-    "paths": {
-      "@models/*": [
-        "src/models/*"
-      ],
-      "@helpers/*": [
-        "src/helpers/*"
-      ],
-      "@components/*": [
-        "src/components/*"
-      ],
-      "@hooks/*": [
-        "src/hooks/*"
-      ],
-      "@decorators/*": [
-        "src/Decorators/*"
-      ]
-    }
+    ]
   },
   "exclude": [
     "node_modules"
   ],
   "compileOnSave": false,
-  "files": [
-    "./src/GridView/index.ts",
-    "./src/helpers/index.ts",
-    "./src/hooks/index.ts",
-    "./src/IFrame/index.ts",
-    "./src/models/index.ts",
-    "./src/UploadButton/index.ts"
-  ]
+  "files": []
 }
