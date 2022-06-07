@@ -1,6 +1,13 @@
-import { sp, SPRest } from '@pnp/sp';
-import type { ICachingOptions } from "@pnp/odata";
+import { SPFI } from "@pnp/sp";
+import { IItemAddResult, IItemUpdateResult } from "@pnp/sp/items";
+import { IFileInfo } from '@pnp/sp/files';
+import { IAttachmentFileInfo } from '@pnp/sp/attachments';
+import { DefaultCatch } from 'trentim-react-sdk/dist/Decorators'
+import { ISPUser } from '../models/ISPUser';
+import { PermissionKind } from '@pnp/sp/security';
+import { IFolderInfo } from '@pnp/sp/folders';
 import "@pnp/sp/webs";
+import "@pnp/sp/sites";
 import "@pnp/sp/profiles";
 import "@pnp/sp/site-groups/web";
 import "@pnp/sp/site-users/web";
@@ -10,13 +17,6 @@ import "@pnp/sp/files";
 import "@pnp/sp/folders";
 import "@pnp/sp/items";
 import "@pnp/sp/attachments";
-import { IItemAddResult, IItemUpdateResult } from "@pnp/sp/items";
-import { IFileAddResult, IFileInfo } from '@pnp/sp/files';
-import { IAttachmentFileInfo } from '@pnp/sp/attachments';
-import { DefaultCatch } from 'trentim-react-sdk/dist/Decorators'
-import { ISPUser } from '../models/ISPUser';
-import { PermissionKind } from '@pnp/sp/security';
-import { IFolderInfo } from '@pnp/sp/folders';
 
 interface ITypedHash<T> {
     [key: string]: T;
@@ -43,7 +43,6 @@ type IBaseItemKey = Readonly<Array<keyof IBaseItemInfo>>;
 export interface IQueryOptions {
     filters?: string;
     expand?: string[];
-    cache?: ICachingOptions;
     top?: number;
     orderBy?: {
         column: string;
@@ -54,10 +53,25 @@ export interface IQueryOptions {
 //type GetPreviousV = <T, R = PreviousUnion<T, IItemVersionInfo>[]>(listTitle: string, itemId: number, { filters, expand, getBy, orderBy }: Pick<IQueryOptions, 'filters' | 'expand' | 'getBy' | 'orderBy'>, ...select: string[]) => Promise<R>;
 
 export default class BaseService {
-    public sp: SPRest;
-    constructor() { 
-        this.sp = sp.configure({headers: {'Origin': window.location.origin}}, window.location.origin);
+    constructor(public sp: SPFI) {
+        this.loadModules().then(() => {
+            this.sp = sp;
+        })
     }
+
+    private async loadModules(additionalModules?: string[]) {
+        const modules = [
+            
+        ]
+        if(additionalModules)
+            modules.push(...additionalModules);
+
+        //Inject the modules at run time.
+        for (const iterator of modules) {
+            await import(iterator);
+        }
+    }
+
     private baseItemsSelect: IBaseItemKey = ['Id', 'Title', 'Created', 'Modified'];
     private uniqueSelect = (select: string[]) => {
         if(!select?.length)
@@ -75,7 +89,7 @@ export default class BaseService {
     }
 
     @DefaultCatch((err) => { console.error(err); return []; })
-    public async getItems<T>(identifier: string, { filters = null, expand = null, cache = null, top = null, orderBy = null, getBy = 'Title' }: IQueryOptions, ...select: string[]): Promise<T[]> {
+    public async getItems<T>(identifier: string, { filters = null, expand = null, top = null, orderBy = null, getBy = 'Title' }: IQueryOptions, ...select: string[]): Promise<T[]> {
         if(!getBy)
             getBy = 'Title';
         const lists = this.sp.web.lists[`getBy${getBy}`](identifier);
@@ -85,9 +99,7 @@ export default class BaseService {
             .filter(filters ?? `Id ne null`)
             .orderBy(orderBy?.column ?? 'Id', orderBy?.ascending !== undefined ? orderBy.ascending : true)
             .top(top || 9999999);
-        if(!cache) 
-            return await query.get<T[]>();
-        return query.usingCaching(cache).get<T[]>();
+        return await query({cache: 'only-if-cached'});
     }
 
     @DefaultCatch((err) => { console.error(err); return null; })
@@ -123,16 +135,16 @@ export default class BaseService {
         if (!filters) {
             if (!expand)
                 return await baseItem.getById(itemId).versions.select(...select, ...defaultSelect)
-                .orderBy(orderTuple[0], orderTuple[1]).get<R>();
+                .orderBy(orderTuple[0], orderTuple[1])<R>();
             return await baseItem.expand(...expand).getById(itemId).versions.select(...select, ...defaultSelect).expand(...expand)
-                .orderBy(orderTuple[0], orderTuple[1]).get<R>();
+                .orderBy(orderTuple[0], orderTuple[1])<R>();
         }
         else {
             if (!expand)
                 return await baseItem.getById(itemId).versions.filter(filters).select(...select, ...defaultSelect)
-                    .orderBy(orderTuple[0], orderTuple[1]).get<R>();
+                    .orderBy(orderTuple[0], orderTuple[1])<R>();
             return await baseItem.expand(...expand).getById(itemId).versions.select(...select, ...defaultSelect).filter(filters).expand(...expand)
-                .orderBy(orderTuple[0], orderTuple[1]).get<R>();
+                .orderBy(orderTuple[0], orderTuple[1])<R>();
         }
     }
 
@@ -143,19 +155,10 @@ export default class BaseService {
 
     @DefaultCatch((err) => { console.error(err); return false; })
     public async sendAttachments(listName: string, itemId: number, attachments: IAttachmentFileInfo[]) {
-        await this.sp.web.lists.getByTitle(listName).items.getById(itemId).attachmentFiles.addMultiple(attachments);
+        for (const attachment of attachments) {
+            await this.sp.web.lists.getByTitle(listName).items.getById(itemId).attachmentFiles.add(attachment.name, attachment.content);
+        }
         return true;
-    }
-
-    @DefaultCatch((err) => console.error(err))
-    public async addFileToLibrary(libraryUrl: string, folderUrl: string, content: File): Promise<IFileAddResult> {
-        const chunkSize = 40960;
-        const fileAddRes = await this.sp.web.getFolderByServerRelativeUrl(libraryUrl).files.addChunked(folderUrl, content, (data) => {
-            const percent = (data.blockNumber / data.totalBlocks);
-            console.log(percent);
-        }, true, chunkSize);
-        console.log("File upload succeded");
-        return fileAddRes;
     }
 
     @DefaultCatch((err) => console.error(err))
@@ -166,7 +169,7 @@ export default class BaseService {
         let realTotalPercentage: number = 0;
         files.forEach(_ => accumulatorPercent.push(0));
         const result = await Promise.allSettled(files.map((f, idx) => {
-            return this.sp.web.getFolderByServerRelativeUrl(f.libraryUrl?.replace(`/${f.name}`, '')).files.addChunked(f.name, f.content, (data) => {
+            return this.sp.web.getFolderByServerRelativePath(f.libraryUrl?.replace(`/${f.name}`, '')).files.addChunked(f.name, f.content, (data) => {
                 const totalBlocks = data.fileSize <= chunkSize ? 1 : data.totalBlocks;
                 const individualPercentage = (data.blockNumber / totalBlocks);
                 if(accumulatorPercent[idx] < 1)
@@ -184,12 +187,12 @@ export default class BaseService {
 
     @DefaultCatch((err) => { console.error(err); return []; })
     public async getItemAttachments(listTitle: string, itemId: number) {
-        return await this.sp.web.lists.getByTitle(listTitle).items.getById(itemId).attachmentFiles.get();
+        return await this.sp.web.lists.getByTitle(listTitle).items.getById(itemId).attachmentFiles();
     }
 
     @DefaultCatch((err) => { console.error(err); return null; })
     public async getCurrentUser(): Promise<ISPUser> {
-        const userInfo = await this.sp.web.currentUser.get() as ISPUser;
+        const userInfo = await this.sp.web.currentUser() as ISPUser;
         const context = await this.sp.site.getContextInfo();
         const isExternal = userInfo.LoginName.includes("#ext#");
         userInfo.IsExternalUser = isExternal;
@@ -199,9 +202,9 @@ export default class BaseService {
 
 
     @DefaultCatch((err) => { console.error(err); return []; })
-    public async getFileItemData<T>(identifier: string, files: IFileInfo[] | IFolderInfo[], {expand = null, getBy = 'Id', filters = null, cache = undefined}: IQueryOptions, ...select: string[]): Promise<GetFile<T>[]> {
+    public async getFileItemData<T>(identifier: string, files: IFileInfo[] | IFolderInfo[], {expand = null, getBy = 'Id', filters = null}: IQueryOptions, ...select: string[]): Promise<GetFile<T>[]> {
         const _files = await Promise.all(files?.map(async file => {
-            const fileInfo = await this.getItems<T>(identifier, {expand, filters, getBy: getBy ?? 'Title', cache}, ...select);
+            const fileInfo = await this.getItems<T>(identifier, {expand, filters, getBy: getBy ?? 'Title'}, ...select);
             if(fileInfo?.length >= 1)
                 return this.removeOData([{...file, data: this.removeOData(fileInfo)[0]}])[0];
             return {...file, data: null};

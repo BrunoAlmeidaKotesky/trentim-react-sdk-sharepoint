@@ -42,7 +42,6 @@ if (syncDeps.length) {
     process.exit(100);
   }
   console.error('Info: No file dependencies found to sync');
-  return;
 }
 
 if (mode === 'WATCH') {

@@ -1,11 +1,19 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
+import { initializeIcons } from '@fluentui/react/lib/Icons';
+import {useSPConnection} from './hooks/useSPConnection';
 
 let hmrUpdate: undefined | (() => void);
 initializeIcons();
 
 const Demo = (): JSX.Element => {
   const [hotRefreshCounter, setHotRefreshCounter] = React.useState<number>(0);
+  const bs = useSPConnection();
+
+  React.useEffect(() => {
+    bs.getItems('ListaProjetos', {}).then(r => console.log(r));
+  }, []);
+
   hmrUpdate = () => setHotRefreshCounter(hotRefreshCounter + 1);
   return (
     <div style={{
